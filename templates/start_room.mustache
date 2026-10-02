@@ -1,0 +1,61 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    @package    mod_webconferens
+    @copyright  2026 webconferens
+    @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+    @template mod_webconferens/start_room
+
+    Full HTML for the live tab. No Moodle theme.
+
+    1. PHP prints the config as one application/json script tag.
+    2. The page loads video_conference.js (cameras) then start_room.js.
+    3. start_room.js opens FastPubSub, hangs AES on media prefixes,
+       then calls startVideoConference with the built client.
+
+    Example context:
+        {
+            "lang": "en",
+            "title": "Web Conference",
+            "layoutcssurl": "/mod/webconferens/styles.css",
+            "clientcssurl": "/mod/webconferens/js/video_conference.css",
+            "jsmissing": false,
+            "jsmissingtext": "",
+            "configjson": "{\"type\":\"lesson\"}",
+            "clientjsurl": "/mod/webconferens/js/video_conference.js",
+            "startjsurl": "/mod/webconferens/launcher/start_room.js"
+        }
+}}
+<!DOCTYPE html>
+<html lang="{{lang}}" class="webconferens-live">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+{{#layoutcssurl}}
+<link rel="stylesheet" href="{{layoutcssurl}}">
+{{/layoutcssurl}}
+{{#clientcssurl}}
+<link rel="stylesheet" href="{{clientcssurl}}">
+{{/clientcssurl}}
+</head>
+<body class="webconferens-live">
+{{#jsmissing}}
+<p class="webconferens-missing">{{jsmissingtext}}</p>
+{{/jsmissing}}
+{{^jsmissing}}
+<div id="webconferens-app" class="webconferens-app"></div>
+<!--
+  Launch example for reviewers.
+
+  PHP writes one JSON config blob below, including accessToken and mediaKey.
+  launcher/start_room.js opens FastPubSub, hangs the AES filter, then
+  calls startVideoConference(#webconferens-app, { overlayClient, ... }).
+-->
+<script type="application/json" id="webconferens-config">{{{configjson}}}</script>
+<script src="{{clientjsurl}}"></script>
+<script src="{{startjsurl}}"></script>
+{{/jsmissing}}
+</body>
+</html>

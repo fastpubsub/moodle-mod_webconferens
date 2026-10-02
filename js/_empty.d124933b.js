@@ -1,0 +1,1 @@
+(0,("u">typeof globalThis?globalThis:"u">typeof self?self:"u">typeof window?window:"u">typeof global?global:{}).parcelRequireca0e.register)("cFrQj",function(e,l){});

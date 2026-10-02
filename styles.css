@@ -1,0 +1,74 @@
+/**
+ * Live tab fills the browser window. There is no Moodle theme on this page.
+ *
+ * Why: video needs the whole tab, not a reading column inside Boost.
+ * What: html/body and #webconferens-app are a full-height flex column.
+ * How: view.php links this file in its own <head>.
+ *
+ * Moodle also loads this file on every LMS page. Do not style raw html/body.
+ */
+
+html.webconferens-live,
+body.webconferens-live {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+body.webconferens-live {
+    display: flex;
+    flex-direction: column;
+    /* Preline surface is gray-100, foreground is gray-800. */
+    background: #f3f4f6;
+    color: #1f2937;
+    font-family: system-ui, sans-serif;
+}
+
+.webconferens-missing {
+    margin: 0;
+    padding: 1rem;
+}
+
+body.webconferens-live .webconferens-app {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+}
+
+body.webconferens-live .webconferens-app .room {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    padding-top: 0;
+}
+
+body.webconferens-live .webconferens-app .room-meeting,
+body.webconferens-live .webconferens-app .room-lesson,
+body.webconferens-live .webconferens-app .room-body,
+body.webconferens-live .webconferens-app .room-center,
+body.webconferens-live .webconferens-app .room-stage,
+body.webconferens-live .webconferens-app .lesson-stage,
+body.webconferens-live .webconferens-app .room-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+body.webconferens-live .webconferens-app .room-body {
+    min-height: 0;
+}
+
+body.webconferens-live .webconferens-app .room h1,
+body.webconferens-live .webconferens-app .room-actions,
+body.webconferens-live .webconferens-app .room-hint,
+body.webconferens-live .webconferens-app .room-probe,
+body.webconferens-live .webconferens-app .room-note,
+body.webconferens-live .webconferens-app .room-warn {
+    flex-shrink: 0;
+}

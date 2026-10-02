@@ -1,0 +1,11 @@
+{
+    "lang": "en",
+    "title": "Web Conference",
+    "layoutcssurl": "https://moodle.example/mod/webconferens/styles.css",
+    "clientcssurl": "https://moodle.example/mod/webconferens/js/video_conference.css",
+    "jsmissing": false,
+    "jsmissingtext": "",
+    "configjson": "{\"type\":\"lesson\",\"tenantId\":\"vc-demo\"}",
+    "clientjsurl": "https://moodle.example/mod/webconferens/js/video_conference.js",
+    "startjsurl": "https://moodle.example/mod/webconferens/launcher/start_room.js"
+}
