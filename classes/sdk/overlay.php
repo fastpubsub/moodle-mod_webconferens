@@ -18,9 +18,10 @@
  * Nearest is nearest to this Moodle server, not to the student browser.
  *
  * Example:
- *   $edge = \mod_webconferens\sdk\overlay::edge('globaltest');
- *   $token = \mod_webconferens\access_token::issue(
- *       $edge->api_base, $tenant, 'lesson', 'teacher', $USER->id
+ *   $session = \mod_webconferens\sdk\session::open('globaltest');
+ *   $session->resolve_edge();
+ *   $token = \mod_webconferens\access_token::create_access_token(
+ *       $session, $tenant, 'lesson', 'teacher', $USER->id
  *   );
  *
  * @package    mod_webconferens
@@ -46,12 +47,12 @@ class overlay {
     const BOOTSTRAP_TIMEOUT_MS = 5000;
 
     /**
-     * Returns a live edge for this overlay, using the ten-minute cache.
+     * Returns a live edge for this overlay.
      *
-     * Why: get-token and later page-load AT mint should not bootstrap every hit.
+     * Why: get-token should reuse the last winner, and a dead one must not stay for the hour.
      * What: stdClass with api_base, ws_endpoint, wt_endpoint, id, ping_ms.
-     * How: cache lookup, else bootstrap + ping, then store.
-     * When: call before POST /v1/get-token on the Moodle server.
+     * How: a fresh cache entry is kept only when GET /ping returns pong. Otherwise bootstrap and store.
+     * When: call from session::resolve_edge before create_access_token.
      *
      * Example:
      *   $edge = overlay::edge('globaltest');
@@ -64,9 +65,14 @@ class overlay {
         $overlay = self::clean_overlay($overlay);
         $cached = self::cache_get($overlay);
 
-        // Fresh cache: reuse this Moodle's last winner.
-        if ($cached) {
+        // Cached host still answers the health ping: keep it.
+        if ($cached && self::alive($cached->api_base)) {
             return $cached;
+        }
+
+        // Stale or silent host: drop it, then bootstrap.
+        if ($cached) {
+            self::forget($overlay);
         }
 
         $picked = self::discover($overlay);

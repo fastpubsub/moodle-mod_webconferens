@@ -11,7 +11,7 @@
  *
  * Why: Moodle holds the main token (MT) and now also picks a cached edge.
  * What: JSON `{ token }` or `{ error }`.
- * How: checks login and sesskey, PHP overlay SDK picks api_base, then issue.
+ * How: checks login and sesskey, resolves one edge, then create_access_token.
  * The browser never names that host. A failed discovery returns an error.
  *
  * @package    mod_webconferens
@@ -64,8 +64,10 @@ if ($overlayname === false || $overlayname === '') {
 }
 
 try {
-    $token = \mod_webconferens\access_token::issue_for_overlay(
-        $overlayname,
+    $session = \mod_webconferens\sdk\session::open($overlayname);
+    $session->resolve_edge();
+    $token = \mod_webconferens\access_token::create_access_token(
+        $session,
         $instance->tenantid,
         $roomtype,
         $role,

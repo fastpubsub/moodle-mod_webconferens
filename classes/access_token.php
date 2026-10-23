@@ -61,8 +61,10 @@
  *   viewers' private paths. The hall is one-way media.
  *
  * Example:
- *   $token = \mod_webconferens\access_token::issue(
- *       $apibase, $tenant, 'lesson', 'teacher', $USER->id
+ *   $session = \mod_webconferens\sdk\session::open('globaltest');
+ *   $session->resolve_edge();
+ *   $token = \mod_webconferens\access_token::create_access_token(
+ *       $session, $tenant, 'lesson', 'teacher', $USER->id
  *   );
  *
  * @package    mod_webconferens
@@ -258,97 +260,26 @@ class access_token {
     }
 
     /**
-     * Picks a cached edge and mints an AT. A failed health ping starts discovery again.
-     *
-     * Why: a dead cached host should not be reused for the rest of the hour.
-     * What: returns the AT string.
-     * How: overlay::edge, then issue. If curl cannot reach the host and /ping is not pong, forget and try once more.
-     * When: call from token.php and live_config instead of edge() plus issue().
-     *
-     * Example:
-     *   $token = access_token::issue_for_overlay(
-     *       'globaltest', $tenant, 'lesson', 'teacher', $userid
-     *   );
-     *
-     * @param string $overlay overlay name
-     * @param string $tenant FastPubSub tenant of this activity
-     * @param string $roomtype lesson, all_to_all, or conference
-     * @param string $role overlay role string
-     * @param string|int $userid overlay participant id for this room
-     * @return string access token
-     */
-    public static function issue_for_overlay($overlay, $tenant, $roomtype, $role, $userid) {
-        $edge = \mod_webconferens\sdk\overlay::edge($overlay);
-
-        try {
-            return self::issue($edge->api_base, $tenant, $roomtype, $role, $userid);
-        } catch (\moodle_exception $e) {
-            // Pong, or a real HTTP answer: this host stays. A bad MT is not a dead edge.
-            if (!self::host_is_dead($e, $edge->api_base)) {
-                throw $e;
-            }
-        }
-
-        \mod_webconferens\sdk\overlay::forget($overlay);
-        $edge = \mod_webconferens\sdk\overlay::edge($overlay);
-
-        try {
-            return self::issue($edge->api_base, $tenant, $roomtype, $role, $userid);
-        } catch (\moodle_exception $e) {
-            // The new host failed health too. Do not keep it for the hour.
-            if (self::host_is_dead($e, $edge->api_base)) {
-                \mod_webconferens\sdk\overlay::forget($overlay);
-            }
-
-            throw $e;
-        }
-    }
-
-    /**
-     * Decides whether this mint failure means the edge is down.
-     *
-     * Why: only a host that missed /ping should be dropped from the cache.
-     * What: true when curl failed and GET /ping did not return pong.
-     * How: ignore every error except edgeunreachable, then call overlay::alive.
-     *
-     * @param \moodle_exception $e error from issue()
-     * @param string $apibase edge REST base that was just called
-     * @return bool
-     */
-    private static function host_is_dead(\moodle_exception $e, $apibase) {
-        // The API answered. Token errors are not a dead server.
-        if ($e->errorcode !== 'edgeunreachable') {
-            return false;
-        }
-
-        // Health ping returned pong: the server is alive.
-        if (\mod_webconferens\sdk\overlay::alive($apibase)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Mints a signed AT on the edge PHP already picked.
+     * Mints a signed AT on the edge this session already resolved.
      *
      * Why: WebSocket needs an AT scoped to this tenant and role.
-     * What: returns the AT string.
-     * How: POST /v1/get-token with the site main token (MT), 8 Mbit/s each way.
-     * When: call from issue_for_overlay() after an edge is picked.
+     * What: returns the AT string. Same step as the JS SDK createAccessToken.
+     * How: builds the grant JSON, then the session POSTs it and returns the token.
+     * When: call once after session::resolve_edge().
      *
-     * @param string $apibase edge REST base from overlay::edge(), never from the browser
+     * Example:
+     *   $token = access_token::create_access_token(
+     *       $session, $tenant, 'lesson', 'teacher', $userid
+     *   );
+     *
+     * @param \mod_webconferens\sdk\session $session overlay session with a resolved edge
      * @param string $tenant FastPubSub tenant of this activity
      * @param string $roomtype lesson, all_to_all, or conference
      * @param string $role overlay role string
      * @param string|int $userid overlay participant id for this room
      * @return string access token
      */
-    public static function issue($apibase, $tenant, $roomtype, $role, $userid) {
-        global $CFG;
-
-        require_once($CFG->libdir . '/filelib.php');
-
+    public static function create_access_token($session, $tenant, $roomtype, $role, $userid) {
         $mt = get_config('mod_webconferens', 'maintoken');
 
         // Overlay AT cannot be minted without the site MT and a room tenant.
@@ -356,11 +287,9 @@ class access_token {
             throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
         }
 
-        $apibase = self::normalize_api_base($apibase);
         // One grant function for this ritual and role. The lists go into the AT.
         $grants = self::grants($roomtype, $role, (string)$userid);
         $expires = gmdate('Y-m-d\TH:i:s\Z', time() + HOURSECS);
-        $url = $apibase . '/v1/get-token';
         $body = [
             'right' => [
                 'tenant_grants' => [[
@@ -379,48 +308,6 @@ class access_token {
             'description' => $roomtype . ' tenant=' . $tenant . ' participant=' . $userid,
         ];
 
-        $curl = new \curl();
-        $curl->setopt(['CURLOPT_TIMEOUT' => 10]);
-        $curl->setHeader([
-            'Authorization: Bearer ' . $mt,
-            'Content-Type: application/json',
-            'Accept: application/json',
-        ]);
-        $raw = $curl->post($url, json_encode($body));
-
-        // Timeout, DNS, connect, or TLS. The caller still checks /ping before a new bootstrap.
-        if ($curl->get_errno()) {
-            throw new \moodle_exception('edgeunreachable', 'mod_webconferens');
-        }
-
-        $parsed = json_decode($raw);
-
-        // FastPubSub returns { token } on success; anything else is a mint failure.
-        if (empty($parsed->token) || !is_string($parsed->token)) {
-            throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
-        }
-
-        return $parsed->token;
-    }
-
-    /**
-     * Trims and checks the edge REST base from PHP discovery.
-     *
-     * Why: get-token must hit an https (or local http) FastPubSub API.
-     * What: returns a base without a trailing slash.
-     * How: trim, drop the last slash, then require http(s).
-     *
-     * @param string $raw api_base from overlay::edge()
-     * @return string
-     */
-    public static function normalize_api_base($raw) {
-        $base = rtrim(trim($raw), '/');
-
-        // Discovery must hand a real edge REST URL, not a relative path.
-        if ($base === '' || (strpos($base, 'https://') !== 0 && strpos($base, 'http://') !== 0)) {
-            throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
-        }
-
-        return $base;
+        return $session->create_access_token($mt, $body);
     }
 }
