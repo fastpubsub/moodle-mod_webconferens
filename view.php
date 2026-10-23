@@ -11,7 +11,7 @@
  *
  * Why: students and teachers open the course module here, in a new tab.
  * What: checks login and view, mints an AT, prints a small HTML shell.
- * How: require_login, live_config, then start_room without header/footer.
+ * How: require_login, log the view, live_config, then start_room without header/footer.
  *
  * @package    mod_webconferens
  * @copyright  2026 FastPubSub <info@fastpubsub.com>
@@ -20,6 +20,7 @@
 
 // Moodle root is two folders up from this activity.
 require(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/lib.php');
 
 $id = required_param('id', PARAM_INT);
 
@@ -33,6 +34,9 @@ require_login($course, true, $cm);
 
 $context = context_module::instance($cm->id);
 require_capability('mod/webconferens:view', $context);
+
+// Log the open even when the shipped client files are missing.
+webconferens_view($instance, $course, $cm, $context);
 
 $PAGE->set_context($context);
 $PAGE->set_title(format_string($instance->name));

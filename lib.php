@@ -10,7 +10,7 @@
  * Callbacks Moodle calls on an activity module.
  *
  * Why: core looks for named functions in lib.php when adding, updating, or deleting an activity.
- * What: feature flags, course-link onclick, and create / update / delete of one instance.
+ * What: feature flags, course-link onclick, create / update / delete, and the viewed log.
  * How: reads and writes the `webconferens` table through Moodle DB.
  *
  * @package    mod_webconferens
@@ -248,4 +248,32 @@ function webconferens_delete_instance($id) {
     $DB->delete_records('webconferens', ['id' => $id]);
 
     return true;
+}
+
+/**
+ * Writes the standard "module viewed" log for one room page.
+ *
+ * Why: reports need a record that this user opened the activity.
+ * What: triggers course_module_viewed for the webconferens row.
+ * How: creates the event, attaches course snapshots, then triggers it.
+ * When: call from view.php after the user may enter the room.
+ *
+ * Example:
+ *   webconferens_view($instance, $course, $cm, $context);
+ *
+ * @param stdClass $instance webconferens row
+ * @param stdClass $course course row
+ * @param stdClass $cm course module row
+ * @param context_module $context module context
+ * @return void
+ */
+function webconferens_view($instance, $course, $cm, $context) {
+    $event = \mod_webconferens\event\course_module_viewed::create([
+        'context' => $context,
+        'objectid' => $instance->id,
+    ]);
+    $event->add_record_snapshot('course_modules', $cm);
+    $event->add_record_snapshot('course', $course);
+    $event->add_record_snapshot('webconferens', $instance);
+    $event->trigger();
 }
