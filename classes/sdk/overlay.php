@@ -11,10 +11,10 @@
  *
  * Why: the JS SDK picks an edge in the browser. Moodle mints AT on the
  * server and needs the same bootstrap, host list, and nearest-edge ping.
- * What: loads overlay hosts, pings up to four of them at once, caches
- * the winner for ten minutes (inside the 5-15 minute window).
- * How: GET https://{overlay}.fastpubsub.workers.dev/ then parallel
- * GET {api_base}/ping with curl_multi. Warm-up ping, then a timed ping.
+ * What: loads overlay hosts, pings up to four of them one by one, caches
+ * the winner for one hour.
+ * How: GET https://{overlay}.fastpubsub.workers.dev/ then Moodle curl
+ * GET {api_base}/ping. Warm-up ping, then a timed ping.
  * Nearest is nearest to this Moodle server, not to the student browser.
  *
  * Example:
@@ -33,8 +33,8 @@ namespace mod_webconferens\sdk;
 defined('MOODLE_INTERNAL') || die();
 
 class overlay {
-    /** Keep a picked edge this long. Ten minutes sits in the 5-15 minute band. */
-    const CACHE_TTL_SEC = 600;
+    /** Keep a picked edge this long. After this, discovery runs again. */
+    const CACHE_TTL_SEC = 3600;
 
     /** Same cap as the JS SDK: probe a short prefix of the bootstrap list. */
     const MAX_CANDIDATES = 4;
@@ -50,7 +50,7 @@ class overlay {
      *
      * Why: get-token and later page-load AT mint should not bootstrap every hit.
      * What: stdClass with api_base, ws_endpoint, wt_endpoint, id, ping_ms.
-     * How: cache lookup, else bootstrap + parallel ping, then store.
+     * How: cache lookup, else bootstrap + ping, then store.
      * When: call before POST /v1/get-token on the Moodle server.
      *
      * Example:
@@ -154,7 +154,7 @@ class overlay {
      *
      * Why: get-token must hit a live api_base, not a random host from bootstrap.
      * What: the same stdClass shape as edge().
-     * How: first four hosts, warm-up /ping in parallel, timed /ping in parallel.
+     * How: first four hosts, warm-up /ping, then timed /ping, one host after another.
      *
      * @param string $overlay overlay name
      * @return \stdClass
@@ -261,70 +261,36 @@ class overlay {
     }
 
     /**
-     * GETs many URLs at the same time.
+     * GETs many URLs one after another.
      *
-     * Why: PHP has no Promise.all, but curl_multi runs REST calls in parallel.
+     * Why: Moodle's curl wrapper applies the site proxy and blocks private hosts.
      * What: list of body, http code, time_ms, errno per URL, same order.
-     * How: curl_multi_exec until every handle finishes or times out.
+     * How: one Moodle curl GET per URL. Each request has its own timeout.
+     * When: call for a short list, such as the four edge pings.
+     *
+     * Example:
+     *   $rows = overlay::multi_get(['https://edge.example/ping'], 1000);
      *
      * @param string[] $urls full URLs
-     * @param int $timeoutms per-handle timeout
+     * @param int $timeoutms per-request timeout
      * @return array
      */
     public static function multi_get(array $urls, $timeoutms) {
         $results = [];
 
-        // Empty list: nothing to wait for.
-        if (count($urls) === 0) {
-            return $results;
+        foreach ($urls as $url) {
+            $results[] = self::one_get($url, $timeoutms);
         }
-
-        // No curl_multi on this PHP: fall back to one GET after another.
-        if (!function_exists('curl_multi_init')) {
-            foreach ($urls as $url) {
-                $results[] = self::one_get($url, $timeoutms);
-            }
-
-            return $results;
-        }
-
-        $mh = curl_multi_init();
-        $handles = [];
-
-        foreach ($urls as $i => $url) {
-            $ch = self::make_handle($url, $timeoutms);
-            curl_multi_add_handle($mh, $ch);
-            $handles[$i] = $ch;
-        }
-
-        $running = 0;
-
-        do {
-            $status = curl_multi_exec($mh, $running);
-
-            // Wait for sockets instead of a tight loop.
-            if ($running) {
-                curl_multi_select($mh, 0.2);
-            }
-        } while ($running && $status === CURLM_OK);
-
-        foreach ($handles as $i => $ch) {
-            $results[$i] = self::read_handle($urls[$i], $ch, (string) curl_multi_getcontent($ch));
-            curl_multi_remove_handle($mh, $ch);
-            curl_close($ch);
-        }
-
-        curl_multi_close($mh);
 
         return $results;
     }
 
     /**
-     * Pings a list of api_base URLs in parallel.
+     * Pings a list of api_base URLs one after another.
      *
      * Why: nearest edge is the lowest /ping time that returned pong.
      * What: array of {api_base, ms} for successes only.
-     * How: GET {api_base}/ping on every candidate at once.
+     * How: GET {api_base}/ping on each candidate.
      *
      * @param string[] $api_bases edge REST bases
      * @param bool $keep_times true to return timings, false for warm-up
@@ -376,61 +342,49 @@ class overlay {
     }
 
     /**
-     * Runs one curl GET and returns the same row shape as multi_get.
+     * Runs one HTTPS GET through Moodle's curl wrapper.
+     *
+     * Why: the site proxy and the URL block list must apply.
+     * What: returns the same row shape as multi_get.
+     * How: \curl get, then errno, HTTP code, and total time.
      *
      * @param string $url
      * @param int $timeoutms
      * @return array
      */
     private static function one_get($url, $timeoutms) {
-        $ch = self::make_handle($url, $timeoutms);
-        $body = curl_exec($ch);
+        global $CFG;
 
-        // curl_exec returns false on a transport error.
-        if ($body === false) {
+        require_once($CFG->libdir . '/filelib.php');
+
+        $curl = new \curl();
+        $curl->setopt([
+            'CURLOPT_TIMEOUT_MS' => $timeoutms,
+            'CURLOPT_CONNECTTIMEOUT_MS' => $timeoutms,
+        ]);
+        $body = $curl->get($url);
+
+        // Transport error, or Moodle blocked the URL before the request.
+        if (!is_string($body)) {
             $body = '';
         }
 
-        $row = self::read_handle($url, $ch, $body);
-        curl_close($ch);
+        $info = $curl->get_info();
+        $code = 0;
+        $time = 0;
 
-        return $row;
-    }
+        // get_info is the curl info array after a finished request.
+        if (is_array($info)) {
+            $code = (int) ($info['http_code'] ?? 0);
+            $time = (float) ($info['total_time'] ?? 0);
+        }
 
-    /**
-     * Builds a curl handle for a GET.
-     *
-     * @param string $url
-     * @param int $timeoutms
-     * @return resource|\CurlHandle
-     */
-    private static function make_handle($url, $timeoutms) {
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT_MS, $timeoutms);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, $timeoutms);
-        curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
-        curl_setopt($ch, CURLOPT_HTTPGET, true);
-
-        return $ch;
-    }
-
-    /**
-     * Reads body, status, and total time from a finished handle.
-     *
-     * @param string $url
-     * @param resource|\CurlHandle $ch
-     * @param string $body response body already read from the handle
-     * @return array
-     */
-    private static function read_handle($url, $ch, $body) {
         return [
             'url' => $url,
             'body' => $body,
-            'errno' => curl_errno($ch),
-            'code' => (int) curl_getinfo($ch, CURLINFO_HTTP_CODE),
-            'time_ms' => (int) round(curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000),
+            'errno' => (int) $curl->get_errno(),
+            'code' => $code,
+            'time_ms' => (int) round($time * 1000),
         ];
     }
 
@@ -448,7 +402,31 @@ class overlay {
     }
 
     /**
+     * Drops the cached edge so the next call discovers again.
+     *
+     * Why: a timed-out get-token means this host should not be kept for the hour.
+     * What: removes one overlay key from the application cache.
+     * How: cache delete. A missing key is fine.
+     * When: call after get-token hits the curl timeout.
+     *
+     * Example:
+     *   overlay::forget('globaltest');
+     *   $edge = overlay::edge('globaltest');
+     *
+     * @param string $overlay overlay name
+     */
+    public static function forget($overlay) {
+        $overlay = self::clean_overlay($overlay);
+        $cache = \cache::make('mod_webconferens', 'overlay_edge');
+        $cache->delete($overlay);
+    }
+
+    /**
      * Reads the cached edge for one overlay.
+     *
+     * Why: token mint should reuse the edge picked in the last hour.
+     * What: the stored edge, or null when missing, old, or junk.
+     * How: Moodle application cache, then cached_at against CACHE_TTL_SEC.
      *
      * @param string $overlay
      * @return \stdClass|null
@@ -469,16 +447,29 @@ class overlay {
             return null;
         }
 
+        $age = time() - (int) ($edge->cached_at ?? 0);
+
+        // Hour is over, or the stamp is missing: discover again.
+        if ($age < 0 || $age >= self::CACHE_TTL_SEC) {
+            $cache->delete($overlay);
+            return null;
+        }
+
         return $edge;
     }
 
     /**
-     * Stores the picked edge until the cache TTL expires.
+     * Stores the picked edge for one hour.
+     *
+     * Why: the next token requests should hit the same edge.
+     * What: writes JSON with cached_at into the application cache.
+     * How: Moodle cache set. The definition TTL is the same hour.
      *
      * @param string $overlay
      * @param \stdClass $edge
      */
     private static function cache_set($overlay, $edge) {
+        $edge->cached_at = time();
         $cache = \cache::make('mod_webconferens', 'overlay_edge');
         $cache->set($overlay, json_encode($edge));
     }

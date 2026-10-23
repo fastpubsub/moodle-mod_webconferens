@@ -258,12 +258,59 @@ class access_token {
     }
 
     /**
+     * Picks a cached edge and mints an AT. One timeout starts discovery again.
+     *
+     * Why: a dead cached host should not be reused for the rest of the hour.
+     * What: returns the AT string.
+     * How: overlay::edge, then issue. On curl timeout, forget the edge and try once more.
+     * When: call from token.php and live_config instead of edge() plus issue().
+     *
+     * Example:
+     *   $token = access_token::issue_for_overlay(
+     *       'globaltest', $tenant, 'lesson', 'teacher', $userid
+     *   );
+     *
+     * @param string $overlay overlay name
+     * @param string $tenant FastPubSub tenant of this activity
+     * @param string $roomtype lesson, all_to_all, or conference
+     * @param string $role overlay role string
+     * @param string|int $userid overlay participant id for this room
+     * @return string access token
+     */
+    public static function issue_for_overlay($overlay, $tenant, $roomtype, $role, $userid) {
+        $edge = \mod_webconferens\sdk\overlay::edge($overlay);
+
+        try {
+            return self::issue($edge->api_base, $tenant, $roomtype, $role, $userid);
+        } catch (\moodle_exception $e) {
+            // Only a curl timeout drops the cached host. A bad MT stays a mint failure.
+            if ($e->errorcode !== 'edgetimedout') {
+                throw $e;
+            }
+        }
+
+        \mod_webconferens\sdk\overlay::forget($overlay);
+        $edge = \mod_webconferens\sdk\overlay::edge($overlay);
+
+        try {
+            return self::issue($edge->api_base, $tenant, $roomtype, $role, $userid);
+        } catch (\moodle_exception $e) {
+            // The new host timed out too. Do not keep it for the hour.
+            if ($e->errorcode === 'edgetimedout') {
+                \mod_webconferens\sdk\overlay::forget($overlay);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
      * Mints a signed AT on the edge PHP already picked.
      *
      * Why: WebSocket needs an AT scoped to this tenant and role.
      * What: returns the AT string.
      * How: POST /v1/get-token with the site main token (MT), 8 Mbit/s each way.
-     * When: call from token.php or live_config after overlay::edge().
+     * When: call from issue_for_overlay() after an edge is picked.
      *
      * @param string $apibase edge REST base from overlay::edge(), never from the browser
      * @param string $tenant FastPubSub tenant of this activity
@@ -315,6 +362,11 @@ class access_token {
             'Accept: application/json',
         ]);
         $raw = $curl->post($url, json_encode($body));
+
+        // Curl timeout: the caller drops this edge and discovers again.
+        if ((int) $curl->get_errno() === CURLE_OPERATION_TIMEDOUT) {
+            throw new \moodle_exception('edgetimedout', 'mod_webconferens');
+        }
 
         // Edge down, TLS, or a bad main token (MT) all look like this.
         if ($curl->get_errno()) {

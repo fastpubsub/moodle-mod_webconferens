@@ -1,20 +1,5 @@
 # Todo
 
-## Encrypt the display name
-
-The room key covers video, audio, and chat. It does not cover the name.
-
-The name is in the presence packet `public.participant.<id>.state`.
-That packet also carries the role and the camera and microphone flags.
-`start_room.js` hangs AES-256-GCM only on the `private.*` prefixes.
-The overlay can read the public packet. The link to the overlay is still TLS.
-The packet does not contain the Moodle user id.
-
-Chat already sends the name inside `private.<role>.<id>.chat`, under the room key.
-
-Put the presence packet under the same AES-256-GCM room key.
-People in the room must still see who is there.
-
 ## Lesson mode
 
 Students watch the teacher's material. One teacher, or several.

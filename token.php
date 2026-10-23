@@ -64,18 +64,8 @@ if ($overlayname === false || $overlayname === '') {
 }
 
 try {
-    $edge = \mod_webconferens\sdk\overlay::edge($overlayname);
-    $apibase = $edge->api_base;
-} catch (Throwable $e) {
-    // No browser URL here. get-token would send the site MT to that host.
-    http_response_code(502);
-    echo json_encode(['error' => get_string('edgediscoveryfailed', 'mod_webconferens')]);
-    exit;
-}
-
-try {
-    $token = \mod_webconferens\access_token::issue(
-        $apibase,
+    $token = \mod_webconferens\access_token::issue_for_overlay(
+        $overlayname,
         $instance->tenantid,
         $roomtype,
         $role,
@@ -84,5 +74,12 @@ try {
     echo json_encode(['token' => $token]);
 } catch (Throwable $e) {
     http_response_code(502);
+
+    // Discovery failed before a host was chosen. Mint errors stay a token error.
+    if ($e instanceof moodle_exception && $e->errorcode === 'edgediscoveryfailed') {
+        echo json_encode(['error' => get_string('edgediscoveryfailed', 'mod_webconferens')]);
+        exit;
+    }
+
     echo json_encode(['error' => get_string('tokenissuefailed', 'mod_webconferens')]);
 }
