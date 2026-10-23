@@ -1,30 +1,50 @@
 /**
- * Live tab fills the browser window. There is no Moodle theme on this page.
+ * Live tab fills the browser window inside the embedded layout.
  *
  * Why: video needs the whole tab, not a reading column inside Boost.
- * What: html/body and #webconferens-app are a full-height flex column.
- * How: view.php links this file in its own <head>.
- *
- * Moodle also loads this file on every LMS page. Do not style raw html/body.
+ * What: body.webconferens-live and the embedded page boxes are a full-height column.
+ * How: view.php adds the body class. This file also loads on other pages,
+ *      so every rule stays under that class.
  */
-
-html.webconferens-live,
-body.webconferens-live {
-    margin: 0;
-    height: 100%;
-    overflow: hidden;
-}
 
 body.webconferens-live {
     display: flex;
     flex-direction: column;
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
     /* Preline surface is gray-100, foreground is gray-800. */
     background: #f3f4f6;
     color: #1f2937;
     font-family: system-ui, sans-serif;
 }
 
-.webconferens-missing {
+body.webconferens-live #page-header,
+body.webconferens-live .activity-header,
+body.webconferens-live #page-footer {
+    display: none;
+}
+
+/* Moodle wraps the template in div role=main inside .embedded-main. */
+body.webconferens-live #page-wrapper,
+body.webconferens-live #page,
+body.webconferens-live .embedded-main,
+body.webconferens-live .embedded-main > [role="main"],
+body.webconferens-live #page-content,
+body.webconferens-live #region-main-box,
+body.webconferens-live #region-main,
+body.webconferens-live #region-main > .region-main-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+body.webconferens-live .webconferens-missing {
     margin: 0;
     padding: 1rem;
 }

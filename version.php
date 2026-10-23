@@ -21,7 +21,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_webconferens';
-$plugin->version = 2026102301;
+$plugin->version = 2026102302;
 $plugin->release = '0.1.0';
 $plugin->requires = 2022112800;
 $plugin->maturity = MATURITY_BETA;

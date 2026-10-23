@@ -10,7 +10,7 @@
  * Builds the config object the start_room template prints for the live client.
  *
  * Why: PHP already knows the Moodle user, role, tenant, and room type.
- * What: a plain array. view.php prints it as one JSON script tag.
+ * What: a plain array. view.php passes it to js_call_amd.
  * How: maps host capability to a JS role string per room type.
  *
  * Example:
@@ -124,10 +124,10 @@ class live_config {
      * Why: a display name with quotes or angle brackets must not break HTML.
      * What: returns one JSON object string.
      * How: json_encode with hex escapes for HTML-sensitive chars.
-     * When: call from view.php after for_user().
+     * When: call when a page must print the config inside HTML.
      *
      * Example:
-     *   'configjson' => live_config::json($config),
+     *   $json = live_config::json($config);
      *
      * @param array $config return value of for_user()
      * @return string

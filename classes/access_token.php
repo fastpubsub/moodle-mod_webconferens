@@ -21,7 +21,8 @@
  * ask for teacher or speaker rights.
  *
  * MT stays on the Moodle server. The tab gets one AT, one tenant (this
- * activity), one overlay participant id (not the Moodle user id), for about one hour.
+ * activity), one overlay participant id (not the Moodle user id), for
+ * 23 hours and 55 minutes. A new page load mints a new AT.
  *
  * Channel idea:
  * - Media and chat are written only under your own id.
@@ -95,6 +96,15 @@ class access_token {
      * How: covers about 15 low cameras, mics, and one or two high pictures.
      */
     const EGRESS_KB_PER_SEC = 1024;
+
+    /**
+     * How long a minted AT stays valid, in seconds.
+     *
+     * Why: the page mints the AT once and does not refresh it.
+     * What: 23 hours and 55 minutes.
+     * How: overlay rejects more than 24 hours. Five minutes cover clock skew.
+     */
+    const TTL_SECONDS = (23 * HOURSECS) + (55 * MINSECS);
 
     /**
      * Picks the grant function for this room type and role.
@@ -264,7 +274,7 @@ class access_token {
      *
      * Why: WebSocket needs an AT scoped to this tenant and role.
      * What: returns the AT string. Same step as the JS SDK createAccessToken.
-     * How: builds the grant JSON, then the session POSTs it and returns the token.
+     * How: builds the grant JSON with TTL_SECONDS, then the session POSTs it.
      * When: call once after session::resolve_edge().
      *
      * Example:
@@ -289,7 +299,8 @@ class access_token {
 
         // One grant function for this ritual and role. The lists go into the AT.
         $grants = self::grants($roomtype, $role, (string)$userid);
-        $expires = gmdate('Y-m-d\TH:i:s\Z', time() + HOURSECS);
+        // Leave five minutes under the overlay 24 hour cap.
+        $expires = gmdate('Y-m-d\TH:i:s\Z', time() + self::TTL_SECONDS);
         $body = [
             'right' => [
                 'tenant_grants' => [[

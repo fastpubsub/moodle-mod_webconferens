@@ -7,11 +7,11 @@
 // (at your option) any later version.
 
 /**
- * Live room page. No Moodle theme. The JS client draws the room.
+ * Live room page. Embedded layout, no course menu. The JS client draws the room.
  *
  * Why: students and teachers open the course module here, in a new tab.
- * What: checks login and view, mints an AT, prints a small HTML shell.
- * How: require_login, log the view, live_config, then start_room without header/footer.
+ * What: checks login and view, mints an AT, prints the mount node.
+ * How: require_login, log the view, live_config, then js_call_amd inside header/footer.
  *
  * @package    mod_webconferens
  * @copyright  2026 FastPubSub <info@fastpubsub.com>
@@ -40,58 +40,47 @@ webconferens_view($instance, $course, $cm, $context);
 
 $PAGE->set_context($context);
 $PAGE->set_title(format_string($instance->name));
+$PAGE->set_heading(format_string($instance->name));
+// Embedded keeps RequireJS and drops the course menu so the tab stays a room.
+$PAGE->set_pagelayout('embedded');
+$PAGE->add_body_class('webconferens-live');
+$PAGE->activityheader->disable();
 
 $jsfile = $CFG->dirroot . '/mod/webconferens/js/video_conference.js';
 $cssfile = $CFG->dirroot . '/mod/webconferens/js/video_conference.css';
-$startfile = $CFG->dirroot . '/mod/webconferens/launcher/start_room.js';
-$layoutcss = $CFG->dirroot . '/mod/webconferens/styles.css';
+$amdfile = $CFG->dirroot . '/mod/webconferens/amd/build/start_room.min.js';
 
 $templatedata = [
-    'lang' => current_language(),
-    'title' => format_string($instance->name, true, ['context' => $context, 'escape' => false]),
-    'layoutcssurl' => '',
-    'clientcssurl' => '',
     'jsmissing' => false,
     'jsmissingtext' => '',
-    'configjson' => '{}',
-    'clientjsurl' => '',
-    'startjsurl' => '',
 ];
 
-// Layout CSS fills the tab. Link it here because there is no theme header.
-if (is_readable($layoutcss)) {
-    $layoutmtime = filemtime($layoutcss);
-    $templatedata['layoutcssurl'] = (new moodle_url(
-        '/mod/webconferens/styles.css',
-        ['t' => $layoutmtime]
-    ))->out(false);
-}
-
+// Camera CSS is not the plugin styles.css. Load it only on this page.
 if (is_readable($cssfile)) {
     $cssmtime = filemtime($cssfile);
-    $templatedata['clientcssurl'] = (new moodle_url(
+    $PAGE->requires->css(new moodle_url(
         '/mod/webconferens/js/video_conference.css',
         ['t' => $cssmtime]
-    ))->out(false);
+    ));
 }
 
-// Shipped client or the launcher is missing. The ZIP install is incomplete.
-if (!is_readable($jsfile) || !is_readable($startfile)) {
+// Shipped client or the AMD build is missing. The ZIP install is incomplete.
+if (!is_readable($jsfile) || !is_readable($amdfile)) {
     $templatedata['jsmissing'] = true;
     $templatedata['jsmissingtext'] = get_string('jsmissing', 'mod_webconferens');
-    header('Content-Type: text/html; charset=utf-8');
-    echo $OUTPUT->render_from_template('mod_webconferens/start_room', $templatedata);
-    exit;
+} else {
+    $config = \mod_webconferens\live_config::for_user($instance, $USER, $context, $cm);
+
+    // Bust browser cache when Parcel rewrites the client.
+    $jsmtime = filemtime($jsfile);
+    $config['clientJsUrl'] = (new moodle_url(
+        '/mod/webconferens/js/video_conference.js',
+        ['t' => $jsmtime]
+    ))->out(false);
+
+    $PAGE->requires->js_call_amd('mod_webconferens/start_room', 'init', [$config]);
 }
 
-$config = \mod_webconferens\live_config::for_user($instance, $USER, $context, $cm);
-
-// Bust browser cache when Parcel rewrites the client, or the launcher changes.
-$jsmtime = filemtime($jsfile);
-$startmtime = filemtime($startfile);
-$templatedata['configjson'] = \mod_webconferens\live_config::json($config);
-$templatedata['clientjsurl'] = (new moodle_url(    '/mod/webconferens/js/video_conference.js',    ['t' => $jsmtime]))->out(false);
-$templatedata['startjsurl'] = (new moodle_url(    '/mod/webconferens/launcher/start_room.js',    ['t' => $startmtime]))->out(false);
-
-header('Content-Type: text/html; charset=utf-8');
+echo $OUTPUT->header();
 echo $OUTPUT->render_from_template('mod_webconferens/start_room', $templatedata);
+echo $OUTPUT->footer();
