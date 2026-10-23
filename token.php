@@ -11,7 +11,7 @@
  *
  * Why: Moodle holds the main token (MT) and now also picks a cached edge.
  * What: JSON `{ token }` or `{ error }`.
- * How: checks login and sesskey, PHP overlay SDK picks api_base, then issue.
+ * How: checks login and sesskey, resolves one edge, then create_access_token.
  * The browser never names that host. A failed discovery returns an error.
  *
  * @package    mod_webconferens
@@ -64,18 +64,10 @@ if ($overlayname === false || $overlayname === '') {
 }
 
 try {
-    $edge = \mod_webconferens\sdk\overlay::edge($overlayname);
-    $apibase = $edge->api_base;
-} catch (Throwable $e) {
-    // No browser URL here. get-token would send the site MT to that host.
-    http_response_code(502);
-    echo json_encode(['error' => get_string('edgediscoveryfailed', 'mod_webconferens')]);
-    exit;
-}
-
-try {
-    $token = \mod_webconferens\access_token::issue(
-        $apibase,
+    $session = \mod_webconferens\sdk\session::open($overlayname);
+    $session->resolve_edge();
+    $token = \mod_webconferens\access_token::create_access_token(
+        $session,
         $instance->tenantid,
         $roomtype,
         $role,
@@ -84,5 +76,12 @@ try {
     echo json_encode(['token' => $token]);
 } catch (Throwable $e) {
     http_response_code(502);
+
+    // Discovery failed before a host was chosen. Mint errors stay a token error.
+    if ($e instanceof moodle_exception && $e->errorcode === 'edgediscoveryfailed') {
+        echo json_encode(['error' => get_string('edgediscoveryfailed', 'mod_webconferens')]);
+        exit;
+    }
+
     echo json_encode(['error' => get_string('tokenissuefailed', 'mod_webconferens')]);
 }

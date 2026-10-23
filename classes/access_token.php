@@ -61,8 +61,10 @@
  *   viewers' private paths. The hall is one-way media.
  *
  * Example:
- *   $token = \mod_webconferens\access_token::issue(
- *       $apibase, $tenant, 'lesson', 'teacher', $USER->id
+ *   $session = \mod_webconferens\sdk\session::open('globaltest');
+ *   $session->resolve_edge();
+ *   $token = \mod_webconferens\access_token::create_access_token(
+ *       $session, $tenant, 'lesson', 'teacher', $USER->id
  *   );
  *
  * @package    mod_webconferens
@@ -258,25 +260,26 @@ class access_token {
     }
 
     /**
-     * Mints a signed AT on the edge PHP already picked.
+     * Mints a signed AT on the edge this session already resolved.
      *
      * Why: WebSocket needs an AT scoped to this tenant and role.
-     * What: returns the AT string.
-     * How: POST /v1/get-token with the site main token (MT), 8 Mbit/s each way.
-     * When: call from token.php or live_config after overlay::edge().
+     * What: returns the AT string. Same step as the JS SDK createAccessToken.
+     * How: builds the grant JSON, then the session POSTs it and returns the token.
+     * When: call once after session::resolve_edge().
      *
-     * @param string $apibase edge REST base from overlay::edge(), never from the browser
+     * Example:
+     *   $token = access_token::create_access_token(
+     *       $session, $tenant, 'lesson', 'teacher', $userid
+     *   );
+     *
+     * @param \mod_webconferens\sdk\session $session overlay session with a resolved edge
      * @param string $tenant FastPubSub tenant of this activity
      * @param string $roomtype lesson, all_to_all, or conference
      * @param string $role overlay role string
      * @param string|int $userid overlay participant id for this room
      * @return string access token
      */
-    public static function issue($apibase, $tenant, $roomtype, $role, $userid) {
-        global $CFG;
-
-        require_once($CFG->libdir . '/filelib.php');
-
+    public static function create_access_token($session, $tenant, $roomtype, $role, $userid) {
         $mt = get_config('mod_webconferens', 'maintoken');
 
         // Overlay AT cannot be minted without the site MT and a room tenant.
@@ -284,11 +287,9 @@ class access_token {
             throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
         }
 
-        $apibase = self::normalize_api_base($apibase);
         // One grant function for this ritual and role. The lists go into the AT.
         $grants = self::grants($roomtype, $role, (string)$userid);
         $expires = gmdate('Y-m-d\TH:i:s\Z', time() + HOURSECS);
-        $url = $apibase . '/v1/get-token';
         $body = [
             'right' => [
                 'tenant_grants' => [[
@@ -307,48 +308,6 @@ class access_token {
             'description' => $roomtype . ' tenant=' . $tenant . ' participant=' . $userid,
         ];
 
-        $curl = new \curl();
-        $curl->setopt(['CURLOPT_TIMEOUT' => 10]);
-        $curl->setHeader([
-            'Authorization: Bearer ' . $mt,
-            'Content-Type: application/json',
-            'Accept: application/json',
-        ]);
-        $raw = $curl->post($url, json_encode($body));
-
-        // Edge down, TLS, or a bad main token (MT) all look like this.
-        if ($curl->get_errno()) {
-            throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
-        }
-
-        $parsed = json_decode($raw);
-
-        // FastPubSub returns { token } on success; anything else is a mint failure.
-        if (empty($parsed->token) || !is_string($parsed->token)) {
-            throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
-        }
-
-        return $parsed->token;
-    }
-
-    /**
-     * Trims and checks the edge REST base from PHP discovery.
-     *
-     * Why: get-token must hit an https (or local http) FastPubSub API.
-     * What: returns a base without a trailing slash.
-     * How: trim, drop the last slash, then require http(s).
-     *
-     * @param string $raw api_base from overlay::edge()
-     * @return string
-     */
-    public static function normalize_api_base($raw) {
-        $base = rtrim(trim($raw), '/');
-
-        // Discovery must hand a real edge REST URL, not a relative path.
-        if ($base === '' || (strpos($base, 'https://') !== 0 && strpos($base, 'http://') !== 0)) {
-            throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
-        }
-
-        return $base;
+        return $session->create_access_token($mt, $body);
     }
 }

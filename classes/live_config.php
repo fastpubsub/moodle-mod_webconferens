@@ -59,9 +59,10 @@ class live_config {
         $accesstoken = '';
 
         try {
-            $edge = \mod_webconferens\sdk\overlay::edge($overlay);
-            $accesstoken = \mod_webconferens\access_token::issue(
-                $edge->api_base,
+            $session = \mod_webconferens\sdk\session::open($overlay);
+            $session->resolve_edge();
+            $accesstoken = \mod_webconferens\access_token::create_access_token(
+                $session,
                 $instance->tenantid ?? '',
                 $roomtype,
                 $role,

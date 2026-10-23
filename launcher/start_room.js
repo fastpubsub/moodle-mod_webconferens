@@ -99,7 +99,7 @@ function logOverlayEvent(event) {
  * Why: the launcher must show how the overlay session and media key are set.
  * What: builds a WebSocket client, then mounts the live UI.
  * How: FastPubSub.open, webSocket(AT), bandwidth then fragment then AES
- *      per private prefix, then startVideoConference.
+ *      on each prefix in the list, then startVideoConference.
  */
 async function startRoom() {
   var configNode = document.getElementById('webconferens-config');
@@ -169,7 +169,7 @@ async function startRoom() {
     // Split big H.264 access units. Keep WebSocket frames at 16 KiB.
     fragment = new FastPubSub.FragmentFilter(32 * 1024, 16 * 1024);
 
-    // 8 Mbit/s for all private prefixes together. 1024 KiB/s, same ceiling as the AT.
+    // 8 Mbit/s for media and presence together. 1024 KiB/s, same ceiling as the AT.
     bandwidth = new FastPubSub.BandwidthLimiterFilter(1024 * 1024);
 
     builder = session.webSocket(config.accessToken);
@@ -177,7 +177,9 @@ async function startRoom() {
       'private.participant.',
       'private.teacher.',
       'private.student.',
-      'private.speaker.'
+      'private.speaker.',
+      // Heartbeat JSON on public.participant.<id>.state holds the display name.
+      'public.participant.'
     ];
 
     // Added first runs last on the way out: encrypt, split, then limit.

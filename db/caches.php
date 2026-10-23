@@ -11,7 +11,7 @@
  *
  * Why: overlay edge discovery should not bootstrap on every token request.
  * What: one application cache for the picked FastPubSub edge.
- * How: Moodle cache API, TTL ten minutes.
+ * How: Moodle cache API, TTL one hour. The value also stores cached_at.
  *
  * @package    mod_webconferens
  * @copyright  2026 FastPubSub <info@fastpubsub.com>
@@ -25,6 +25,6 @@ $definitions = [
         'mode' => cache_store::MODE_APPLICATION,
         'simplekeys' => true,
         'simpledata' => true,
-        'ttl' => 600,
+        'ttl' => 3600,
     ],
 ];
