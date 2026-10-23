@@ -404,10 +404,10 @@ class overlay {
     /**
      * Drops the cached edge so the next call discovers again.
      *
-     * Why: a timed-out get-token means this host should not be kept for the hour.
+     * Why: a cached host that failed the health ping should not be kept for the hour.
      * What: removes one overlay key from the application cache.
      * How: cache delete. A missing key is fine.
-     * When: call after get-token hits the curl timeout.
+     * When: call after GET /ping did not return pong.
      *
      * Example:
      *   overlay::forget('globaltest');
@@ -419,6 +419,29 @@ class overlay {
         $overlay = self::clean_overlay($overlay);
         $cache = \cache::make('mod_webconferens', 'overlay_edge');
         $cache->delete($overlay);
+    }
+
+    /**
+     * Checks one edge with the API health ping.
+     *
+     * Why: a get-token transport error does not by itself mean the host is dead.
+     * What: true when GET /ping returns HTTP 200 and the body pong.
+     * How: one Moodle curl GET with the ping timeout.
+     * When: call before dropping a cached edge.
+     *
+     * Example:
+     *   if (!overlay::alive($edge->api_base)) {
+     *       overlay::forget('globaltest');
+     *   }
+     *
+     * @param string $apibase edge REST base
+     * @return bool
+     */
+    public static function alive($apibase) {
+        $url = self::cache_bust(rtrim($apibase, '/') . '/ping', '_fps_ping');
+        $row = self::one_get($url, self::PING_TIMEOUT_MS);
+
+        return $row['errno'] === 0 && $row['code'] === 200 && trim($row['body']) === 'pong';
     }
 
     /**

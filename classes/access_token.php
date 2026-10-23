@@ -258,11 +258,11 @@ class access_token {
     }
 
     /**
-     * Picks a cached edge and mints an AT. One timeout starts discovery again.
+     * Picks a cached edge and mints an AT. A failed health ping starts discovery again.
      *
      * Why: a dead cached host should not be reused for the rest of the hour.
      * What: returns the AT string.
-     * How: overlay::edge, then issue. On curl timeout, forget the edge and try once more.
+     * How: overlay::edge, then issue. If curl cannot reach the host and /ping is not pong, forget and try once more.
      * When: call from token.php and live_config instead of edge() plus issue().
      *
      * Example:
@@ -283,8 +283,8 @@ class access_token {
         try {
             return self::issue($edge->api_base, $tenant, $roomtype, $role, $userid);
         } catch (\moodle_exception $e) {
-            // Only a curl timeout drops the cached host. A bad MT stays a mint failure.
-            if ($e->errorcode !== 'edgetimedout') {
+            // Pong, or a real HTTP answer: this host stays. A bad MT is not a dead edge.
+            if (!self::host_is_dead($e, $edge->api_base)) {
                 throw $e;
             }
         }
@@ -295,13 +295,38 @@ class access_token {
         try {
             return self::issue($edge->api_base, $tenant, $roomtype, $role, $userid);
         } catch (\moodle_exception $e) {
-            // The new host timed out too. Do not keep it for the hour.
-            if ($e->errorcode === 'edgetimedout') {
+            // The new host failed health too. Do not keep it for the hour.
+            if (self::host_is_dead($e, $edge->api_base)) {
                 \mod_webconferens\sdk\overlay::forget($overlay);
             }
 
             throw $e;
         }
+    }
+
+    /**
+     * Decides whether this mint failure means the edge is down.
+     *
+     * Why: only a host that missed /ping should be dropped from the cache.
+     * What: true when curl failed and GET /ping did not return pong.
+     * How: ignore every error except edgeunreachable, then call overlay::alive.
+     *
+     * @param \moodle_exception $e error from issue()
+     * @param string $apibase edge REST base that was just called
+     * @return bool
+     */
+    private static function host_is_dead(\moodle_exception $e, $apibase) {
+        // The API answered. Token errors are not a dead server.
+        if ($e->errorcode !== 'edgeunreachable') {
+            return false;
+        }
+
+        // Health ping returned pong: the server is alive.
+        if (\mod_webconferens\sdk\overlay::alive($apibase)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -363,14 +388,9 @@ class access_token {
         ]);
         $raw = $curl->post($url, json_encode($body));
 
-        // Curl timeout: the caller drops this edge and discovers again.
-        if ((int) $curl->get_errno() === CURLE_OPERATION_TIMEDOUT) {
-            throw new \moodle_exception('edgetimedout', 'mod_webconferens');
-        }
-
-        // Edge down, TLS, or a bad main token (MT) all look like this.
+        // Timeout, DNS, connect, or TLS. The caller still checks /ping before a new bootstrap.
         if ($curl->get_errno()) {
-            throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
+            throw new \moodle_exception('edgeunreachable', 'mod_webconferens');
         }
 
         $parsed = json_decode($raw);
