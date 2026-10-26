@@ -13,7 +13,7 @@ body.webconferens-live {
     margin: 0;
     height: 100vh;
     overflow: hidden;
-    /* Preline surface is gray-100, foreground is gray-800. */
+    /* Page background is gray-100, text is gray-800. */
     background: #f3f4f6;
     color: #1f2937;
     font-family: system-ui, sans-serif;
