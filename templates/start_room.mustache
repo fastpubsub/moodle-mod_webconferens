@@ -13,11 +13,11 @@
     2. view.php calls mod_webconferens/start_room through js_call_amd.
     3. That module loads video_conference.js, hangs AES, then fills #webconferens-app.
 
-    Example context:
-        {
-            "jsmissing": false,
-            "jsmissingtext": ""
-        }
+    Example context (json):
+    {
+        "jsmissing": false,
+        "jsmissingtext": ""
+    }
 }}
 {{#jsmissing}}
 <p class="webconferens-missing">{{jsmissingtext}}</p>

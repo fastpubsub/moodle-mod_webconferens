@@ -161,7 +161,7 @@ const roomFrom = (config) => {
  * @param {Object} config init argument
  * @returns {Promise<void>}
  */
-const startRoom = async (root, config) => {
+const startRoom = async(root, config) => {
     const FastPubSub = window.FastPubSub;
     const room = roomFrom(config);
 
