@@ -150,7 +150,7 @@ class session {
      * @return string
      */
     private function rest_base() {
-        // resolve_edge was not called, or discovery stored nothing.
+        // Resolve edge was not called, or discovery stored nothing.
         if (!$this->edge || empty($this->edge->api_base)) {
             throw new \moodle_exception('edgediscoveryfailed', 'mod_webconferens');
         }

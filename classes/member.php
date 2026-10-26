@@ -79,6 +79,7 @@ class member {
                 // Unique key roomoverlay or roomuser rejected this insert.
                 // The row was not written. The next try reads the user again
                 // or draws another overlay id.
+                debugging($e->getMessage(), DEBUG_DEVELOPER);
             }
         }
 

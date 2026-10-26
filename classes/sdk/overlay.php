@@ -179,16 +179,16 @@ class overlay {
             $candidates[] = self::candidate_from_host($host);
         }
 
-        $api_bases = [];
+        $apibases = [];
 
         foreach ($candidates as $candidate) {
-            $api_bases[] = $candidate->api_base;
+            $apibases[] = $candidate->api_base;
         }
 
         // Drop TCP/TLS setup from the timed round, same as the JS SDK.
-        self::ping_wave($api_bases, false);
+        self::ping_wave($apibases, false);
 
-        $timings = self::ping_wave($api_bases, true);
+        $timings = self::ping_wave($apibases, true);
 
         // No edge answered pong: Moodle cannot mint an AT.
         if (count($timings) === 0) {
@@ -303,15 +303,15 @@ class overlay {
      * What: array of {api_base, ms} for successes only.
      * How: GET {api_base}/ping on each candidate.
      *
-     * @param string[] $api_bases edge REST bases
-     * @param bool $keep_times true to return timings, false for warm-up
+     * @param string[] $apibases edge REST bases
+     * @param bool $keeptimes true to return timings, false for warm-up
      * @return array
      */
-    private static function ping_wave(array $api_bases, $keep_times) {
+    private static function ping_wave(array $apibases, $keeptimes) {
         $urls = [];
 
-        foreach ($api_bases as $api_base) {
-            $urls[] = self::cache_bust(rtrim($api_base, '/') . '/ping', '_fps_ping');
+        foreach ($apibases as $apibase) {
+            $urls[] = self::cache_bust(rtrim($apibase, '/') . '/ping', '_fps_ping');
         }
 
         $rows = self::multi_get($urls, self::PING_TIMEOUT_MS);
@@ -321,12 +321,12 @@ class overlay {
             $ok = ($row['errno'] === 0 && $row['code'] === 200 && trim($row['body']) === 'pong');
 
             // Failed ping, or the warm-up wave, does not enter the ranking.
-            if (!$ok || !$keep_times) {
+            if (!$ok || !$keeptimes) {
                 continue;
             }
 
             $timings[] = [
-                'api_base' => $api_bases[$i],
+                'api_base' => $apibases[$i],
                 'ms' => $row['time_ms'],
             ];
         }
@@ -384,7 +384,7 @@ class overlay {
         $code = 0;
         $time = 0;
 
-        // get_info is the curl info array after a finished request.
+        // Curl get_info is the info array after a finished request.
         if (is_array($info)) {
             $code = (int) ($info['http_code'] ?? 0);
             $time = (float) ($info['total_time'] ?? 0);
