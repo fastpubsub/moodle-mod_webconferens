@@ -17,9 +17,9 @@
 /**
  * Reads one Web Conference from a course backup and inserts it.
  *
- * Why: the new course needs the same room type, tenant, and media key.
+ * Why: the new course needs the same room type, and its own live room.
  * What: inserts one webconferens row and restores intro files.
- * How: process_webconferens handles the XML element.
+ * How: process_webconferens handles the XML element and mints a tenant and media key.
  * Participant ids are not in the backup, so this step does not touch them.
  *
  * Example:
@@ -60,8 +60,8 @@ class restore_webconferens_activity_structure_step extends restore_activity_stru
      * Inserts one restored Web Conference.
      *
      * Why: the XML row must become a webconferens record on this site.
-     * What: writes name, intro, room type, tenant, and the masked media key.
-     * How: drops the old id, sets the new course id, then insert_record.
+     * What: writes name, intro, and room type, plus a new tenant and media key.
+     * How: drops the old id, sets the new course id, mints the room, then insert_record.
      *
      * @param array|stdClass $data fields from webconferens.xml
      */
@@ -73,6 +73,10 @@ class restore_webconferens_activity_structure_step extends restore_activity_stru
 
         // The backup id belongs to the source site.
         unset($data->id);
+
+        // Old backups may still carry these. A new row gets its own room.
+        $data->tenantid = 'vc-' . bin2hex(random_bytes(8));
+        $data->mediakey = webconferens_media_key_xor(webconferens_new_media_key());
 
         $newitemid = $DB->insert_record('webconferens', $data);
         $this->apply_activity_instance($newitemid);

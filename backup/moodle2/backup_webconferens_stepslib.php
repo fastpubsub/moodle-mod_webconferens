@@ -17,8 +17,8 @@
 /**
  * XML structure of one Web Conference inside a course backup.
  *
- * Why: restore needs the room fields, not a fresh empty activity.
- * What: name, intro, room type, tenant, and the masked media key.
+ * Why: restore needs the room title and type, not the live room itself.
+ * What: name, intro, and room type. Tenant and media key stay out.
  * How: one nested element sourced from the webconferens table.
  * Participant ids stay out. They are local to this site.
  *
@@ -56,8 +56,6 @@ class backup_webconferens_activity_structure_step extends backup_activity_struct
             'intro',
             'introformat',
             'roomtype',
-            'tenantid',
-            'mediakey',
             'timecreated',
             'timemodified',
         ]);

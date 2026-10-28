@@ -17,7 +17,7 @@
 /**
  * Restore task for one Web Conference activity.
  *
- * Why: a course restore must recreate the live room from the backup XML.
+ * Why: a course restore must recreate the activity and give it a new live room.
  * What: one structure step that reads webconferens.xml.
  * How: Moodle calls define_my_steps while restoring the activity.
  *
@@ -31,6 +31,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once($CFG->dirroot . '/mod/webconferens/lib.php');
 require_once($CFG->dirroot . '/mod/webconferens/backup/moodle2/restore_webconferens_stepslib.php');
 
 /**

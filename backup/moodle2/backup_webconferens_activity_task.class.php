@@ -17,7 +17,7 @@
 /**
  * Backup task for one Web Conference activity.
  *
- * Why: a course backup must keep the live room, not only the course shell.
+ * Why: a course backup must keep the activity title and room type.
  * What: one structure step that writes webconferens.xml.
  * How: Moodle calls define_my_steps while building the activity backup.
  *
