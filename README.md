@@ -115,8 +115,7 @@ The browser client is already built in `js/`. The site admin does not run npm.
   That page is the webconferens site setting.
 4. Set the overlay name and the main token. Save.
 
-Moodle 4.1 or later. Checked on Moodle 4.5.4 (Build: 20250414).
-Not tested on Moodle 5.1 or 5.2.
+Moodle 4.5 to 5.3. Checked on Moodle 4.5.4 (Build: 20250414).
 
 Add a webconferens activity to a course, choose Meeting, and open it.
 

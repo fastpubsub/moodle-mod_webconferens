@@ -18,7 +18,7 @@
  * Plugin version and other install metadata.
  *
  * Why: Moodle reads this file to install and upgrade the activity.
- * What: component name, version, required Moodle version, maturity.
+ * What: component name, version, Moodle 4.5 to 5.3, maturity.
  * How: plain assignments, no includes.
  *
  * @package    mod_webconferens
@@ -29,7 +29,10 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_webconferens';
-$plugin->version = 2026102302;
+$plugin->version = 2026103000;
 $plugin->release = '0.1.0';
-$plugin->requires = 2022112800;
+// Moodle 4.5.0. Same floor as the plugins listing.
+$plugin->requires = 2024100700;
+// Branches 4.5 through 5.3, inclusive. Same range as the plugins listing.
+$plugin->supported = [405, 503];
 $plugin->maturity = MATURITY_BETA;
