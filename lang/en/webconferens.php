@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+$string['cachedef_overlay_edge'] = 'The FastPubSub edge picked for this site';
 $string['edgediscoveryfailed'] = 'Could not pick a FastPubSub edge. Check overlay name and network from the Moodle server.';
 $string['jsmissing'] = 'The Web Conference room files are missing from this plugin. Reinstall Web Conference from the plugin ZIP.';
 $string['maintoken'] = 'FastPubSub main token (MT)';
