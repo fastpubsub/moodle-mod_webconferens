@@ -12,17 +12,20 @@ a separate network. The site needs an overlay name (network name in
 FastPubSub) and a main token (MT) before anyone can join.
 The next sections say how to get them and where to paste them.
 
-The module offers three video conference modes: Meeting, Lesson, and Conference.
+The product has three video conference modes: Meeting, Lesson, and Conference.
 
 Meeting: Everyone sees everyone and may speak. A useful meeting is about
 12 to 15 people. More voices at once turn into noise. That is the size of
-a conversation. This mode works in this release.
+a conversation.
 
 Lesson: Students watch the teacher's material. One teacher, or several.
-Students do not talk to each other on the air. This mode is still in development.
+Students do not talk to each other on the air.
 
 Conference: The speaker is on the air. The hall watches. Viewers do not send
-their own camera. This mode is still in development. 
+their own camera.
+
+This package is still in development.
+The status section says which of these modes this release ships.
 
 ## FastPubSub is required
 
@@ -66,7 +69,7 @@ Do not publish the token from the reply.
 
 ## Room formats
 
-The activity form has three formats.
+The product has three formats.
 Each format is a different kind of meeting, with different roles.
 Each activity is its own room, with its own tenant and its own media key.
 
@@ -78,8 +81,19 @@ Each activity is its own room, with its own tenant and its own media key.
 | Conference | The speaker is on the air. The hall watches. Viewers do not send their own camera.                                                           |
 
 
-In this version only Meeting works.
-Lesson and Conference are still in development.
+## Status of this release
+
+This package is still in development.
+The sections above describe the product.
+This release ships Meeting only.
+
+| Format     | In this release                                  |
+| ---------- | ------------------------------------------------ |
+| Meeting    | Yes. The activity form offers Meeting.           |
+| Lesson     | No. Not in the form. A posted value is rejected. |
+| Conference | No. Not in the form. A posted value is rejected. |
+
+See Changes for what shipped in 0.1.0.
 
 ## Install
 

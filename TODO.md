@@ -4,14 +4,14 @@
 
 Students watch the teacher's material. One teacher, or several.
 Students do not talk to each other on the air.
-This mode is not ready. A teacher can already choose it for a course.
+This mode is not ready. It is not in the activity form.
 The code for this mode does not work.
 
 ## Conference mode
 
 The speaker is on the air. The hall watches.
 Viewers do not send their own camera.
-This mode is not ready. A teacher can already choose it for a course.
+This mode is not ready. It is not in the activity form.
 The code for this mode does not work.
 
 ## Simple quizzes
