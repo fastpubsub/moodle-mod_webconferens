@@ -40,7 +40,7 @@ class member {
      * What: returns the stored overlay id, creating it on the first visit.
      * How: returns the saved id for this user. On the first visit, inserts
      * 8 hex characters. The unique key roomoverlay rejects a parallel duplicate.
-     * That insert is not stored, and the next try draws another id.
+     * That insert is not stored. Four if/else levels try again.
      * When: call before minting an AT or printing client config.
      *
      * Example:
@@ -51,38 +51,72 @@ class member {
      * @return string overlay participant id
      */
     public static function overlay_id(int $roomid, int $userid): string {
-        global $DB;
-
         // A second tab may insert the same user while this request decides.
-        for ($try = 0; $try < 8; $try++) {
-            $existing = $DB->get_record('webconferens_member', [
-                'webconferensid' => $roomid,
-                'userid' => $userid,
-            ]);
-
-            if ($existing) {
-                return $existing->overlayid;
-            }
-
-            $overlayid = bin2hex(random_bytes(4));
-            $row = (object) [
-                'webconferensid' => $roomid,
-                'userid' => $userid,
-                'overlayid' => $overlayid,
-                'timecreated' => time(),
-            ];
-
-            try {
-                $DB->insert_record('webconferens_member', $row);
+        $overlayid = self::read_or_insert($roomid, $userid);
+        if ($overlayid !== null) {
+            return $overlayid;
+        } else {
+            // Unique key roomuser or roomoverlay rejected the insert.
+            $overlayid = self::read_or_insert($roomid, $userid);
+            if ($overlayid !== null) {
                 return $overlayid;
-            } catch (\dml_exception $e) {
-                // Unique key roomoverlay or roomuser rejected this insert.
-                // The row was not written. The next try reads the user again
-                // or draws another overlay id.
-                debugging($e->getMessage(), DEBUG_DEVELOPER);
+            } else {
+                $overlayid = self::read_or_insert($roomid, $userid);
+                if ($overlayid !== null) {
+                    return $overlayid;
+                } else {
+                    $overlayid = self::read_or_insert($roomid, $userid);
+                    if ($overlayid !== null) {
+                        return $overlayid;
+                    } else {
+                        throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
+                    }
+                }
             }
         }
+    }
 
-        throw new \moodle_exception('tokenissuefailed', 'mod_webconferens');
+    /**
+     * Reads the overlay id, or inserts one new id.
+     *
+     * Why: the next if/else level must see a row a parallel request just stored.
+     * What: returns the overlay id, or null when the insert was rejected.
+     * How: one select. When the row is missing, insert 8 hex characters.
+     * Unique key roomuser or roomoverlay rejects the insert and returns null.
+     *
+     * @param int $roomid webconferens activity id
+     * @param int $userid Moodle user id
+     * @return string|null overlay participant id, or null when the insert lost
+     */
+    private static function read_or_insert(int $roomid, int $userid): ?string {
+        global $DB;
+
+        $existing = $DB->get_record('webconferens_member', [
+            'webconferensid' => $roomid,
+            'userid' => $userid,
+        ]);
+
+        // This user already has an id in this room.
+        if ($existing) {
+            return $existing->overlayid;
+        }
+
+        $overlayid = bin2hex(random_bytes(4));
+        $row = (object) [
+            'webconferensid' => $roomid,
+            'userid' => $userid,
+            'overlayid' => $overlayid,
+            'timecreated' => time(),
+        ];
+
+        try {
+            $DB->insert_record('webconferens_member', $row);
+            return $overlayid;
+        } catch (\dml_exception $e) {
+            // Unique key roomoverlay or roomuser rejected this insert.
+            // The row was not written.
+            debugging($e->getMessage(), DEBUG_DEVELOPER);
+            return null;
+        }
     }
 }
