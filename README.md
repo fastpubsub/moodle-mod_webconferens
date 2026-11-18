@@ -97,23 +97,34 @@ See Changes for what shipped in 0.1.0.
 
 ## Install
 
-This repository is the plugin. Moodle installs it at `{moodle}/mod/webconferens`.
-Clone or copy it there. The folder name on disk must be `webconferens`.
+This plugin is not in the Moodle plugins directory yet.
+The technical review is already done.
+Until the directory lists it, install the version from Git.
 
-A ZIP install needs that same folder name inside the archive:
+The browser client is already built in `js/`. You do not run npm.
+Moodle installs the activity at `{moodle}/mod/webconferens`.
+The folder inside the uploaded zip must be named `webconferens`.
+
+This is the simplest way to get a ready plugin:
 
 ```bash
-git archive --prefix=webconferens/ -o webconferens.zip HEAD
+curl -fsSL -o src.zip https://github.com/fastpubsub/moodle-mod_webconferens/archive/refs/heads/main.zip
+rm -rf pack && mkdir pack
+unzip -q src.zip -d pack
+mv pack/moodle-mod_webconferens-main pack/webconferens
+rm -rf pack/moodle-mod_webconferens-main
+cd pack && zip -r ../webconferens.zip webconferens
 ```
-
-The browser client is already built in `js/`. The site admin does not run npm.
 
 1. Site administration, Plugins, Install plugins. Upload the ZIP.
   Or copy the `webconferens` folder into `{moodle}/mod/`.
 2. Open Site administration, Notifications, and finish the upgrade.
 3. Open Site administration, Plugins, Activity modules, Web Conference.
   That page is the webconferens site setting.
-4. Set the overlay name and the main token. Save.
+4. Ask us for a main token. Email [info@fastpubsub.com](mailto:info@fastpubsub.com).
+  Without that token the conference does not start.
+  The reply contains the token. See "How to get an overlay and a main token".
+5. Set the overlay name and the main token. Save.
 
 Moodle 4.5 to 5.3. Checked on Moodle 4.5.4 (Build: 20250414).
 

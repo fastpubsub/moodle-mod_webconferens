@@ -55,7 +55,7 @@ class guest_entry {
         $name = str_replace(["\r", "\n", "\t"], ' ', $name);
         $name = preg_replace('/ {2,}/', ' ', $name);
 
-        // preg_replace returns null when the pattern fails.
+        // The preg_replace call returns null when the pattern fails.
         if (!is_string($name)) {
             return '';
         }

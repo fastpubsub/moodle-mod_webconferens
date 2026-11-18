@@ -149,7 +149,7 @@ class member {
             throw new \coding_exception('insert_guest is only for the Moodle guest user');
         }
 
-        // roomoverlay may already hold this random id.
+        // The roomoverlay key may already hold this random id.
         for ($attempt = 0; $attempt < 4; $attempt++) {
             $overlayid = bin2hex(random_bytes(4));
             $row = (object) [
