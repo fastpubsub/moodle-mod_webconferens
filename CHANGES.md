@@ -1,5 +1,13 @@
 # Changes
 
+## Unreleased
+
+### Guests
+
+- A guest sees a name form before the room opens. The last name stays in the browser session and fills the form next time.
+- Each guest entry stores a new participant id for the shared Moodle guest user. The typed name is not stored.
+- A normal user still reuses the same participant id in that room.
+
 ## 0.1.0 (2026-09-24)
 
 ### Meeting

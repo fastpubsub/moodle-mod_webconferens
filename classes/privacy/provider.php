@@ -27,7 +27,8 @@ use core_privacy\local\request\writer;
  * Privacy API for the live-room member map.
  *
  * Why: each room stores a Moodle user id and sends a separate participant
- * id plus the display name to FastPubSub.
+ * id plus the display name to FastPubSub. A guest entry adds another row
+ * for the shared guest user. The typed name is not stored.
  * What: declares the member table and the external overlay, then exports
  * and deletes the map.
  * How: metadata provider plus the user-data request providers.
@@ -88,7 +89,7 @@ class provider implements
      */
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
-        $sql = "SELECT ctx.id
+        $sql = "SELECT DISTINCT ctx.id
                   FROM {context} ctx
                   JOIN {course_modules} cm
                     ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
@@ -107,8 +108,8 @@ class provider implements
      * Writes this user's overlay id for each approved room.
      *
      * Why: the user can see which participant id Moodle stored.
-     * What: exports overlayid and timecreated. The display name is not stored.
-     * How: one writer record per module context.
+     * What: exports overlayid and timecreated for every row. The display name is not stored.
+     * How: one writer record per module context. A guest can have several rows.
      * When: Moodle runs a privacy export.
      *
      * Example:
@@ -129,18 +130,28 @@ class provider implements
                 continue;
             }
 
-            $row = $DB->get_record('webconferens_member', [
+            $rows = $DB->get_records('webconferens_member', [
                 'webconferensid' => $roomid,
                 'userid' => $userid,
-            ]);
+            ], 'id ASC');
 
-            if (!$row) {
+            // This user has not entered this room.
+            if (!$rows) {
                 continue;
             }
 
+            $entries = [];
+
+            // One guest account can have a row for every entry.
+            foreach ($rows as $row) {
+                $entries[] = [
+                    'overlayid' => $row->overlayid,
+                    'timecreated' => \core_privacy\local\request\transform::datetime($row->timecreated),
+                ];
+            }
+
             writer::with_context($context)->export_data([], (object) [
-                'overlayid' => $row->overlayid,
-                'timecreated' => \core_privacy\local\request\transform::datetime($row->timecreated),
+                'entries' => $entries,
             ]);
         }
     }
@@ -222,7 +233,7 @@ class provider implements
             return;
         }
 
-        $sql = "SELECT userid
+        $sql = "SELECT DISTINCT userid
                   FROM {webconferens_member}
                  WHERE webconferensid = :webconferensid";
         $userlist->add_from_sql('userid', $sql, ['webconferensid' => $roomid]);

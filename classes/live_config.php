@@ -36,9 +36,8 @@ class live_config {
      *
      * Why: the browser must not guess the room type or the overlay participant id.
      * What: returns type, tenant, overlay, role, room name, media key, and a minted AT.
-     * How: host capability picks teacher/speaker; XOR-masks the stored media key;
-     *      PHP overlay SDK picks an edge and mints the AT before the page is sent.
-     * When: call from view.php after capability checks.
+     * How: loads the saved overlay id, then build() mints the AT.
+     * When: call from view.php for a normal user, after capability checks.
      *
      * Example:
      *   $config = live_config::for_user($instance, $USER, $context, $cm);
@@ -50,10 +49,48 @@ class live_config {
      * @return array JSON-serializable client config
      */
     public static function for_user($instance, $user, $context, $cm) {
+        $overlayid = member::overlay_id((int) $instance->id, (int) $user->id);
+        return self::build($instance, $context, $overlayid, fullname($user));
+    }
+
+    /**
+     * Builds client config for one guest entry.
+     *
+     * Why: a guest has a typed name and a new overlay id, not the shared guest profile.
+     * What: same config array as for_user(), with that name and id.
+     * How: build() mints the AT. This does not read an old member row.
+     * When: call from view.php after the guest submits the name form.
+     *
+     * Example:
+     *   $config = live_config::for_guest($instance, $context, $overlayid, $name);
+     *
+     * @param \stdClass $instance webconferens DB row
+     * @param \context $context activity context
+     * @param string $overlayid overlay participant id for this entry
+     * @param string $displayname name the guest typed
+     * @return array JSON-serializable client config
+     */
+    public static function for_guest($instance, $context, string $overlayid, string $displayname) {
+        return self::build($instance, $context, $overlayid, $displayname);
+    }
+
+    /**
+     * Builds the client config from an overlay id and a display name.
+     *
+     * Why: a normal user and a guest share the token and key steps.
+     * What: returns type, tenant, overlay, role, room name, media key, and a minted AT.
+     * How: host capability picks the role; the PHP overlay SDK mints the AT.
+     *
+     * @param \stdClass $instance webconferens DB row
+     * @param \context $context activity context
+     * @param string $overlayid overlay participant id
+     * @param string $displayname name shown in the room
+     * @return array JSON-serializable client config
+     */
+    private static function build($instance, $context, string $overlayid, string $displayname) {
         $ishost = has_capability('mod/webconferens:host', $context);
         $roomtype = $instance->roomtype ?? 'lesson';
         $role = self::role_for_type($roomtype, $ishost);
-        $overlayid = member::overlay_id((int) $instance->id, (int) $user->id);
         $overlay = get_config('mod_webconferens', 'overlay');
 
         // Site setting default is globaltest. Use it until an admin saves another name.
@@ -83,7 +120,7 @@ class live_config {
             'tenantId' => $instance->tenantid ?? '',
             'overlay' => $overlay,
             'userId' => $overlayid,
-            'displayName' => fullname($user),
+            'displayName' => $displayname,
             'roomName' => format_string($instance->name, true, ['context' => $context, 'escape' => false]),
             'role' => $role,
             'accessToken' => $accesstoken,

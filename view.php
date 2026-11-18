@@ -19,7 +19,8 @@
  *
  * Why: students and teachers open the course module here, in a new tab.
  * What: checks login and view, mints an AT, prints the mount node.
- * How: require_login, log the view, live_config, then js_call_amd inside header/footer.
+ * How: require_login, ask a guest for a name, log the view, live_config,
+ * then js_call_amd inside header/footer.
  *
  * @package    mod_webconferens
  * @copyright  2026 FastPubSub <info@fastpubsub.com>
@@ -43,12 +44,54 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/webconferens:view', $context);
 
-// Log the open even when the shipped client files are missing.
-webconferens_view($instance, $course, $cm, $context);
-
 $PAGE->set_context($context);
 $PAGE->set_title(format_string($instance->name));
 $PAGE->set_heading(format_string($instance->name));
+
+$guestoverlayid = '';
+$guestname = '';
+
+// A guest types a name before the room. A refresh shows the form again.
+if (isguestuser()) {
+    $taken = \mod_webconferens\guest_entry::take((int) $instance->id);
+    $guestname = \mod_webconferens\guest_entry::saved_name();
+
+    // No fresh entry, or the session lost the name. Ask again.
+    if ($taken === null || $guestname === '') {
+        $PAGE->set_pagelayout('incourse');
+        $mform = new \mod_webconferens\form\guest_name();
+        $data = $mform->get_data();
+
+        // The name is valid. Store it, mint a new participant id, then open the room.
+        if ($data) {
+            $name = \mod_webconferens\guest_entry::clean_name($data->displayname);
+
+            // The form already checked this. Check again before writing a row.
+            if ($name !== '' && \core_text::strlen($name) <= \mod_webconferens\guest_entry::NAME_MAX) {
+                \mod_webconferens\guest_entry::save_name($name);
+                $newid = \mod_webconferens\member::insert_guest((int) $instance->id, (int) $USER->id);
+                \mod_webconferens\guest_entry::remember((int) $instance->id, $newid);
+                redirect($PAGE->url);
+            }
+        }
+
+        // First paint of the form. Keep a name the guest already used.
+        if (!$mform->is_submitted() && $guestname !== '') {
+            $mform->set_data(['displayname' => $guestname]);
+        }
+
+        echo $OUTPUT->header();
+        echo $mform->display();
+        echo $OUTPUT->footer();
+        exit;
+    }
+
+    $guestoverlayid = $taken;
+}
+
+// Log the open even when the shipped client files are missing.
+webconferens_view($instance, $course, $cm, $context);
+
 // Embedded keeps RequireJS and drops the course menu so the tab stays a room.
 $PAGE->set_pagelayout('embedded');
 $PAGE->add_body_class('webconferens-live');
@@ -77,7 +120,17 @@ if (!is_readable($jsfile) || !is_readable($amdfile)) {
     $templatedata['jsmissing'] = true;
     $templatedata['jsmissingtext'] = get_string('jsmissing', 'mod_webconferens');
 } else {
-    $config = \mod_webconferens\live_config::for_user($instance, $USER, $context, $cm);
+    // A guest uses the name and the id from the form that was just sent.
+    if (isguestuser()) {
+        $config = \mod_webconferens\live_config::for_guest(
+            $instance,
+            $context,
+            $guestoverlayid,
+            $guestname
+        );
+    } else {
+        $config = \mod_webconferens\live_config::for_user($instance, $USER, $context, $cm);
+    }
 
     // Bust browser cache when Parcel rewrites the client.
     $jsmtime = filemtime($jsfile);

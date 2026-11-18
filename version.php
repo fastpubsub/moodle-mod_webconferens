@@ -29,7 +29,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_webconferens';
-$plugin->version = 2026103000;
+$plugin->version = 2026111800;
 $plugin->release = '0.1.0';
 // Moodle 4.5.0. Same floor as the plugins listing.
 $plugin->requires = 2024100700;

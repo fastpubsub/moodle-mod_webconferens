@@ -24,7 +24,7 @@
         <INDEX NAME="course" UNIQUE="false" FIELDS="course"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="webconferens_member" COMMENT="One overlay participant id per Moodle user in one live room">
+    <TABLE NAME="webconferens_member" COMMENT="Overlay participant ids in one live room. A normal user has one row. Each guest entry adds a row.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="webconferensid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Live room activity id"/>
@@ -34,7 +34,6 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="roomuser" TYPE="unique" FIELDS="webconferensid, userid"/>
         <KEY NAME="roomoverlay" TYPE="unique" FIELDS="webconferensid, overlayid"/>
         <KEY NAME="webconferensid" TYPE="foreign" FIELDS="webconferensid" REFTABLE="webconferens" REFFIELDS="id"/>
         <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>

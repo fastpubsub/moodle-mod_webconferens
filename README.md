@@ -133,6 +133,13 @@ the tenant, and the media key. It does not store participant ids.
 
 For each person in a room, Moodle stores the Moodle user id and a separate
 participant id. That participant id stays until it is more than one day old.
+A later visit to the same room reuses it.
+
+A guest is asked for a name before the room opens. The browser session keeps
+that name and fills the form the next time. Moodle does not store the typed
+name. Each guest entry stores a new participant id on the shared guest user.
+The next entry does not reuse it.
+
 FastPubSub receives the participant id and the display name, so other people
 in the room can see who is there. The Moodle user id is not sent.
 

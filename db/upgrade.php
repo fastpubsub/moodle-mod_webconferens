@@ -204,5 +204,17 @@ function xmldb_webconferens_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092400, 'webconferens');
     }
 
+    if ($oldversion < 2026111800) {
+        $table = new xmldb_table('webconferens_member');
+        $key = new xmldb_key('roomuser', XMLDB_KEY_UNIQUE, ['webconferensid', 'userid']);
+
+        // Guests share one Moodle user, so one room can hold many rows for that user.
+        if ($dbman->table_exists($table) && $dbman->find_key_name($table, $key)) {
+            $dbman->drop_key($table, $key);
+        }
+
+        upgrade_mod_savepoint(true, 2026111800, 'webconferens');
+    }
+
     return true;
 }
